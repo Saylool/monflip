@@ -1,68 +1,143 @@
 # MonFlip
 
-A bilingual Turkish / English price-direction demo on **Monad Testnet (10143)**. Predict BTC, ETH or MON direction over 30 seconds, 1 minute or 5 minutes using test MON. This is a hackathon prototype, not a real-money product.
+**Piyasanın bir sonraki yönünü seç.**
 
-## Trading rules
+MonFlip, **Monad Testnet** üzerinde çalışan bir fiyat yönü tahmin uygulamasıdır. BTC, ETH veya MON seç; fiyatın **30 saniye, 1 dakika veya 5 dakika** içinde yukarı mı aşağı mı gideceğini tahmin et. Cüzdanını bağlayarak test MON ile deneyebilirsin.
 
-- Stake: **0.01–10 test MON**. Fixed **80% net profit** on a correct prediction (1.8× total payout, not leverage).
-- Incorrect: stake lost. Equal recorded price: full refund.
-- Each accepted trade reserves its complete maximum payout. User balances and pending payouts cannot finance other trades. New predictions stop when free house reserve is insufficient.
-- Deposits, withdrawals, predictions and outcomes are stored on chain. The connected wallet owns its balance; no email account or off-chain balance database.
-- There is no house withdrawal or administrator function that can remove reserved funds.
+**Türkçe** · [English](README.en.md)
 
-## Price and trust model
+[Canlı demoyu aç](https://monflip-snowy.vercel.app) · [Testnet sözleşmesini incele](https://testnet.monadscan.com/address/0x37823aa03c00bf91b461fab176139c722952d0b0) · [Test MON al](https://faucet.monad.xyz)
 
-CoinGecko `/simple/price` provides USD reference prices. The server caches responses for 25 seconds and the UI polls every 30 seconds. No synthetic prices or generated historical chart points are used. The graph consists of observations received while the page is open.
+> Bu proje bir hackathon demosudur. Yalnızca test MON kullanılır; gerçek para ürünü değildir.
 
-A **trusted centralized relay**, not a decentralized oracle, signs entry quotes and writes settlement prices. Quotes bind the wallet, contract, chain, asset, direction, duration, stake, price, deadline and account nonce. A dedicated relay wallet is immutable in the contract. Losing its key requires redeployment; an unresponsive relay cannot trap stakes indefinitely.
+## Neler sunuyor?
 
-The duration starts when `open` is included on chain, not when the user clicks. The close price is the CoinGecko observation obtained on settlement after expiry; **it is not a guaranteed exact historical price at the expiry second**. As requested for this demo, CoinGecko source timestamps up to 10 minutes old are accepted. Repeated cached prices can cause refunds. The UI shows the source update time. Request failures never fabricate a price.
+- **Üç varlık:** Bitcoin (BTC), Ethereum (ETH) ve Monad (MON).
+- **Üç süre:** 30 saniye, 1 dakika ve 5 dakika.
+- **Cüzdanla hesap:** E-posta veya şifre gerekmez; uygulama bakiyen cüzdan adresinle eşleşir.
+- **Zincir üzerinde işlemler:** Yatırma, çekme, tahminler ve sonuçlar akıllı sözleşmede tutulur.
+- **CoinGecko fiyatları:** USD cinsinden referans fiyatlar ve son veri zamanı.
+- **Türkçe / İngilizce arayüz:** Telefon ve masaüstüne uygun mor premium tasarım.
 
-There is a 120-second settlement grace period. If settlement has not occurred by then, anyone can call `refundExpired` for a full refund. Settlement is attempted by the open browser; run the independent keeper for automatic completion even when browsers close. The deployed site alone is not a scheduled keeper. Run only one keeper and avoid horizontal relay replicas for this small demo; pending nonce collisions are retried. Anyone can trigger an eligible settlement but cannot choose its price.
+## Nasıl kullanılır?
 
-These relaxed timing rules are intentional demo limitations and can be exploited with faster external prices. **Do not fund with real assets or deploy to mainnet.** The constructor restricts deployment to Monad testnet and the local test chain.
+1. [MonFlip’i aç](https://monflip-snowy.vercel.app) ve tarayıcı cüzdanını bağla. Ağ olarak **Monad Testnet** kullanılır; ağ kimliği `10143`.
+2. [Faucet üzerinden test MON al](https://faucet.monad.xyz). Ağ ücretleri için cüzdanında bir miktar bırak.
+3. Ana ekrandaki **Yatır** düğmesiyle MonFlip işlem bakiyene test MON aktar.
+4. Varlığı, süreyi ve işlem tutarını seç.
+5. **Yukarı** veya **Aşağı** düğmesine bas ve cüzdanındaki işlemi onayla.
+6. Tahminini **Açık işlemler**, sonucunu **Geçmiş** bölümünden takip et. Kullanılabilir bakiyeni **Çek** düğmesiyle cüzdanına geri alabilirsin.
 
-## Run locally
+**Mevcut demoyu kullanmak için yeni sözleşme kurmana gerek yok.** `/setup` ekranı, kendi kurulumunu yapmak isteyen proje sahibine yöneliktir.
 
-Node 22.13+ and npm:
+## Kazanç ve kayıp nasıl hesaplanır?
+
+MonFlip’te kaldıraç yoktur. Doğru tahmin için sabit **%80 net kazanç** uygulanır. İşlem tutarı **0,01–10 test MON** arasındadır.
+
+**1 test MON ile açılan bir işlem örneği:**
+
+| Sonuç | Bakiyene dönen tutar | Net değişim |
+| --- | --- | --- |
+| Tahmin doğru | 1,80 test MON | +0,80 test MON |
+| Tahmin yanlış | 0 test MON | −1 test MON |
+| Giriş ve kapanış fiyatı eşit | 1 test MON | 0 |
+
+Kazanç bakiyene eklenir; cüzdanına aktarmak için **Çek** işlemi yaparsın. Ağ işlem ücretleri bu tablodaki tutarlara dahil değildir.
+
+### Kasa nasıl korunur?
+
+Kasa, her kabul edilen işlem için mümkün olan **toplam ödemeyi** ayırır. Kullanıcı bakiyeleri ve açık işlemler için ayrılan tutarlar başka işlemleri finanse etmek için kullanılamaz. Serbest kasa rezervi yetersizse yeni işlem kabul edilmez.
+
+Bu mekanizma kasanın hiç zarar etmeyeceği anlamına gelmez; mevcut işlemlerin ödeme karşılıklarını korur. Sözleşmede kasa çekme veya ayrılmış fonları yöneticiye aktarma işlevi yoktur.
+
+### Üç farklı bakiye
+
+| Bakiye | Ne işe yarar? | Nasıl eklenir? |
+| --- | --- | --- |
+| Kasa rezervi | Kazanan tahminlerin ödemelerini karşılar | Kurulum sırasında |
+| Sonuçlandırma servisi bakiyesi | Sonuçları zincire yazmanın ağ ücretini karşılar | `/setup` ekranındaki servis adresine test MON gönderilerek |
+| Kişisel işlem bakiyesi | Kullanıcının tahmin açmasını sağlar | Ana ekrandaki **Yatır** düğmesiyle |
+
+**Kurulumda kasaya gönderdiğin 10 test MON, kişisel işlem bakiyene eklenmez.** İşlem açmak için ayrıca ana ekrandan bakiye yatırmalısın.
+
+## Sistem nasıl çalışıyor?
+
+```text
+CoinGecko → Sunucu: referans fiyat ve imzalı teklif
+Cüzdan → MonFlip sözleşmesi: tahmin açma ve tutarı ayırma
+Süre dolunca → Sonuçlandırma servisi → Sözleşmede sonuç ve bakiye güncellemesi
+```
+
+Arayüz Next.js ve React ile, cüzdan bağlantısı viem ile, akıllı sözleşme Solidity ve OpenZeppelin ile geliştirilmiştir. Sunucu fiyatı alır ve imzalar; bakiyeleri ve ödeme kurallarını sözleşme uygular.
+
+### Demo sınırları ve güven modeli
+
+- **Fiyat servisi merkezidir.** CoinGecko verisini imzalayan güvenilir bir servis cüzdanı kullanılır; bu yapı merkeziyetsiz bir oracle değildir.
+- Fiyat yanıtları sunucuda 25 saniye önbelleğe alınır; arayüz 30 saniyede bir sorgular. Demo, kaynak zamanı en fazla **10 dakika eski** olan fiyatları kabul eder. Aynı fiyatın tekrar gelmesi iadeyle sonuçlanabilir.
+- Grafik, sayfa açıkken alınan gerçek gözlemlerden oluşur. Hazır tarihsel grafik veya uydurma fiyat noktaları kullanılmaz.
+- Süre, düğmeye basıldığında değil, işlem zincire dahil edildiğinde başlar. Kapanış fiyatı, süre dolduktan sonra sonuçlandırma sırasında alınan gözlemdir; bitiş saniyesindeki kesin tarihsel fiyat garanti edilmez.
+- Servis 120 saniyelik ek süre içinde sonuçlandıramazsa `refundExpired` çağrısıyla işlem tutarının tamamı iade edilebilir. Arayüz uygun işlemlerde **İade al** seçeneğini gösterir.
+- Açık tarayıcı sonuçlandırmayı tetikler. Tarayıcı kapalıyken de otomatik sonuçlandırma için ayrı bir **keeper** süreci gerekir. Vercel yayını tek başına sürekli çalışan bir keeper sağlamaz.
+- Servis adresi sözleşmede değiştirilemez. Özel anahtar kaybolursa yeni kurulum gerekir. Gecikmeli fiyatlar daha hızlı fiyat kaynaklarıyla istismar edilebilir; bu model gerçek para veya mainnet için tasarlanmamıştır.
+
+## Bilgisayarında çalıştır
+
+**Gerekenler:** Node.js **22.x**, npm ve işlem denemek için bir tarayıcı cüzdanı.
 
 ```sh
+git clone https://github.com/Saylool/monflip.git
+cd monflip
 npm ci
 cp .env.example .env.local
 npm run contracts:compile
 npm run dev
 ```
 
-Never commit `.env.local`, a private key or a mnemonic. Generate a dedicated testnet relay wallet and put its private key in the local environment / hosting secrets as `ORACLE_PRIVATE_KEY`. The web client receives only the public relay address. A CoinGecko Demo API key is optional but helpful for rate limits.
+Ardından [localhost:3000](http://localhost:3000) adresini aç. Sunucu ayarları olmadan fiyat ekranı çalışır; işlem açmak için aşağıdaki kurulum gerekir.
 
-## Activate testnet
+### Ortam değişkenleri
 
-1. Visit `/setup` with a browser wallet on Monad testnet; obtain test MON from https://faucet.monad.xyz.
-2. Fund the relay address with 0.1 test MON for settlement gas (displayed address comes from configured server secret).
-3. Deploy via the setup page, choosing an initial house reserve (default 10 test MON). The transaction is signed in your wallet, never on the server.
-4. Set the returned address as `MONFLIP_CONTRACT` in the server environment and republish / restart.
-5. Start the independent settlement runner on an always-on host:
+Yerelde `.env.local`, Vercel’de proje ortam değişkenleri kullanılır.
+
+| Değişken | Açıklama |
+| --- | --- |
+| `ORACLE_PRIVATE_KEY` | Yalnızca bu demo için oluşturulan servis cüzdanının özel anahtarı. İşlem işlevleri için gereklidir. |
+| `MONFLIP_CONTRACT` | Kendi kurulumunda dağıttığın MonFlip sözleşmesinin adresi. |
+| `COINGECKO_API_KEY` | İsteğe bağlı CoinGecko Demo API anahtarı. |
+| `MONAD_RPC_URL` | İsteğe bağlı RPC adresi. Varsayılan: `https://testnet-rpc.monad.xyz`. |
+
+Özel anahtarlar yalnızca sunucuda kalmalıdır. `NEXT_PUBLIC_` öneki kullanma; `.env.local`, özel anahtar veya kurtarma kelimelerini GitHub’a gönderme. Ana cüzdanın yerine ayrı bir testnet servis cüzdanı kullan.
+
+### Kendi testnet kurulumunu etkinleştir
+
+1. Servis cüzdanının anahtarını `ORACLE_PRIVATE_KEY` olarak ayarla ve uygulamayı başlat veya yayınla.
+2. `/setup` ekranını aç. Gösterilen servis adresine ağ ücretleri için **0,1 test MON** gönder.
+3. Başlangıç kasa rezervini seçerek sözleşmeyi cüzdanında onayla. Varsayılan rezerv **10 test MON**’dur.
+4. Dönen sözleşme adresini `MONFLIP_CONTRACT` olarak kaydet; uygulamayı yeniden başlat veya tekrar yayınla.
+5. Ana ekrana dönerek **Yatır** üzerinden kişisel işlem bakiyesi ekle.
+
+Kurulum işlemi başarılı oldu ama adres kaybolduysa tekrar kurulum yapma. `/setup` ekranında kurulum işlem kimliğini kullanarak sözleşmeyi geri bulabilirsin.
+
+### Tarayıcı kapalıyken sonuçlandırma
+
+Gerekli ortam değişkenlerini içeren `.env.local` dosyasıyla, sürekli açık bir sunucuda çalıştır:
 
 ```sh
 npm run keeper
 ```
 
-## Deploy to Vercel from GitHub
+Bu küçük demo için tek keeper kullan. Birden fazla eşzamanlı servis, aynı cüzdanın işlem sıralamasında çakışma oluşturabilir. Vercel işlevlerindeki önbellek ve işlem sıralama kontrolü her işlev örneğine özeldir; küresel kilit değildir.
 
-Import `Saylool/monflip` at https://vercel.com/new. Select the Next.js framework preset, repository root, Node.js 22.x and leave build/output settings at their defaults. `npm run build` runs the native Next.js production build. Vercel automatically deploys future pushes to `main` once the Git integration is connected.
+## GitHub’dan Vercel’e yayınla
 
-The price screen builds and runs without any secrets. For wallet trading, add these **server-only** environment variables in Vercel project settings:
+1. Depoyu kendi GitHub hesabına fork et ve [Vercel’e içe aktar](https://vercel.com/new).
+2. Framework olarak **Next.js**, Node.js sürümü olarak **22.x**, proje kökü olarak depo kökünü seç. Derleme ve çıktı ayarlarını varsayılan bırak.
+3. İşlem işlevleri için sunucu ortam değişkenlerini ekle. İlk yayında servis anahtarıyla başla; `/setup` tamamlandıktan sonra sözleşme adresini ekleyip yeniden yayınla.
+4. Git bağlantısı kurulduğunda `main` dalına gönderilen değişiklikler otomatik yayınlanır.
 
-- `ORACLE_PRIVATE_KEY`: dedicated testnet relay key. Never use a `NEXT_PUBLIC_` prefix.
-- `MONFLIP_CONTRACT`: deployed contract address, after completing `/setup`.
-- `COINGECKO_API_KEY`: optional Demo API key.
-- `MONAD_RPC_URL`: optional; defaults to the Monad testnet public RPC.
+`npm run build`, standart Next.js üretim derlemesini oluşturur. Keeper ayrı bir sürekli çalışan sunucuda barındırılmalıdır. Depodaki eski `.openai/hosting.json` dosyası önceki yayının kaydıdır; Vercel tarafından kullanılmaz.
 
-Deploy first with the relay key, use `/setup`, then add the returned contract address and redeploy. The relay needs test MON for gas. Vercel runs the API routes as Node.js functions; it does **not** run `npm run keeper` continuously. Use a separate always-on worker for the keeper. Browser-triggered settlement and timeout refunds remain available. In-memory caching / serialization is per function instance, not a global lock.
-
-`.env.local` remains ignored by Git and Vercel uploads. Do not paste secret values into source, deployment URLs or chat. The old `.openai/hosting.json` records the previous Sites deployment and is not used by Vercel.
-
-## Verify
+## Kontroller
 
 ```sh
 npm test
@@ -70,15 +145,21 @@ npm run typecheck
 npm run build
 ```
 
-Contract integration tests use a local EVM, real signatures and mined transactions. They cover win/loss/tie/timeout accounting, reserve exhaustion, simultaneous wins, user withdrawals, stake limits, invalid signatures, replay prevention, foreign account replay and unauthorized settlement. These tests are not an independent security audit or proof of Monad deployment.
+Sözleşme testleri yerel bir EVM üzerinde gerçek imzalar ve işlenmiş işlemler kullanır. Kazanma, kaybetme, eşitlik, zaman aşımı iadesi, kasa yetersizliği, eşzamanlı kazançlar, para çekme, tutar sınırları, geçersiz imzalar ve tekrar kullanım saldırıları kontrol edilir. Bu testler bağımsız güvenlik denetimi yerine geçmez.
 
-## Layout
+## Önemli dosyalar
 
-- `contracts/MonFlip.sol`: escrow, reserve accounting, quote verification and settlement.
-- `app/page.tsx`: responsive bilingual trading surface and browser wallet integration.
-- `app/setup/page.tsx`: wallet-signed deployment and relay funding.
-- `app/api/*`: CoinGecko proxy, public configuration, signed entry quotes and settlement relay.
-- `scripts/keeper.mjs`: independent settlement service.
-- `lib/contract.json`: ABI and compiled deployment bytecode; regenerate after contract changes.
+| Dosya / klasör | Görevi |
+| --- | --- |
+| `app/page.tsx` | İşlem ekranı, dil seçimi ve cüzdan bağlantısı |
+| `app/setup/page.tsx` | Kurulum, servis fonlama ve sözleşme kurtarma |
+| `app/api/` | Fiyat, yapılandırma, imzalı teklif ve sonuçlandırma uçları |
+| `contracts/MonFlip.sol` | Bakiye, kasa, tahmin ve ödeme kuralları |
+| `scripts/keeper.mjs` | Bağımsız sonuçlandırma süreci |
+| `lib/contract.json` | Derlenmiş sözleşme ABI’si ve dağıtım kodu |
 
-Built with Next.js, React, viem and Solidity / OpenZeppelin. The source is MIT licensed.
+Sözleşme değiştiğinde `npm run contracts:compile` ile derlenmiş dosyayı yeniden oluştur.
+
+## Lisans
+
+Kaynak kod [MIT lisansı](LICENSE) ile paylaşılır.
