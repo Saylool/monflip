@@ -91,6 +91,9 @@ export default function Home() {
     [modal, setModal] = useState<"deposit" | "withdraw" | null>(null),
     [cash, setCash] = useState("1"),
     [now, setNow] = useState(Date.now());
+  const [networkError, setNetworkError] = useState(false);
+  const refreshSequence = useRef(0);
+  const refreshPending = useRef<{ key: string; sequence: number } | null>(null);
   const settling = useRef(new Set<string>());
   const activeAccount = useRef<Address | undefined>(undefined);
   const current = prices[assets[asset].symbol];
@@ -102,6 +105,8 @@ export default function Home() {
   const mon = (n: bigint) => format(Number(formatEther(n)), 3);
   const resetAccount = useCallback((a: Address | undefined) => {
     activeAccount.current = a;
+    refreshSequence.current++;
+    setNetworkError(false);
     setAccount(a);
     setRows([]);
     setBalance(0n);
@@ -180,88 +185,50 @@ export default function Home() {
     };
   }, [resetAccount]);
   const refresh = useCallback(async () => {
-    const address = config.contract;
-    if (!address) return;
+    if (!config.contract) return;
     const a = account;
+    const key = `${config.contract}:${a || ""}:${historyPage}`;
+    if (refreshPending.current?.key === key) return;
+    const sequence = ++refreshSequence.current;
+    refreshPending.current = { key, sequence };
     try {
-      const r = (await publicClient.readContract({
-        address,
-        abi,
-        functionName: "availableReserve",
-      })) as bigint;
-      setReserve(r);
-      if (!a) return;
-      const [b, n] = await Promise.all([
-        publicClient.readContract({
-          address,
-          abi,
-          functionName: "balances",
-          args: [a],
-        }),
-        publicClient.readContract({
-          address,
-          abi,
-          functionName: "tradeCount",
-          args: [a],
-        }),
-      ]);
-      const count = Number(n);
-      const ids = (await publicClient.readContract({
-        address,
-        abi,
-        functionName: "tradeIds",
-        args: [
-          a,
-          BigInt(Math.max(0, count - 20 * (historyPage + 1))),
-          BigInt(Math.min(20, Math.max(0, count - 20 * historyPage))),
-        ],
-      })) as bigint[];
-      const result = await Promise.all(
-        ids.map(async (id) => {
-          const v = (await publicClient.readContract({
-            address,
-            abi,
-            functionName: "trades",
-            args: [id],
-          })) as [
-            Address,
-            number,
-            boolean,
-            bigint,
-            bigint,
-            bigint,
-            bigint,
-            bigint,
-            number,
-            bigint,
-          ];
-          return {
-            id,
-            user: v[0],
-            asset: v[1],
-            up: v[2],
-            stake: v[3],
-            startPrice: v[4],
-            endPrice: v[5],
-            openedAt: v[6],
-            endsAt: v[7],
-            result: v[8],
-            payout: v[9],
-          };
-        }),
+      const query = new URLSearchParams({ page: String(historyPage) });
+      if (a) query.set("address", a);
+      const response = await fetch(`/api/account?${query}`, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(25000),
+      });
+      if (!response.ok) throw new Error("CHAIN_UNAVAILABLE");
+      const data = (await response.json()) as {
+        reserve: string;
+        balance: string;
+        rows: Record<string, unknown>[];
+      };
+      if (sequence !== refreshSequence.current || activeAccount.current !== a)
+        return;
+      setReserve(BigInt(data.reserve));
+      setBalance(BigInt(data.balance));
+      setRows(
+        data.rows.map((row: Record<string, unknown>) => ({
+          ...row,
+          id: BigInt(row.id as string),
+          stake: BigInt(row.stake as string),
+          startPrice: BigInt(row.startPrice as string),
+          endPrice: BigInt(row.endPrice as string),
+          openedAt: BigInt(row.openedAt as string),
+          endsAt: BigInt(row.endsAt as string),
+          payout: BigInt(row.payout as string),
+        })) as Row[],
       );
-      if (activeAccount.current === a) {
-        setBalance(b as bigint);
-        setRows(result.reverse());
-      }
+      setNetworkError(false);
     } catch {
-      setMessage(
-        lang === "tr"
-          ? "Ağ bağlantısı kurulamadı. Tekrar denenecek."
-          : "Network unavailable. Retrying.",
-      );
+      if (sequence === refreshSequence.current && activeAccount.current === a)
+        setNetworkError(true);
+    } finally {
+      if (refreshPending.current?.sequence === sequence)
+        refreshPending.current = null;
     }
-  }, [account, config.contract, historyPage, lang]);
+  }, [account, config.contract, historyPage]);
   useEffect(() => {
     refresh();
     const timer = setInterval(refresh, 10000);
@@ -466,6 +433,7 @@ export default function Home() {
   const canTrade =
     !!account &&
     config.ready &&
+    !networkError &&
     !busy &&
     !priceError &&
     !!current &&
@@ -875,6 +843,14 @@ export default function Home() {
           </div>
         </aside>
       </div>
+      {networkError && (
+        <div className="notice status" role="status">
+          {t(
+            "Monad ağına erişilemiyor. Bakiye ve işlem geçmişi yeniden yükleniyor; mevcut işlemlerin sunucuda takip edilmeye devam eder.",
+            "Monad is unavailable. Retrying balances and history; existing predictions continue to be tracked on the server.",
+          )}
+        </div>
+      )}
       {(message || tx) && (
         <div className="notice status" role="status">
           <span>

@@ -1,6 +1,14 @@
-import { createWalletClient, http, isAddress } from "viem";
+import { createWalletClient, createPublicClient, http, isAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { chain, publicClient, abi } from "./chain";
+import { chain, abi } from "./chain";
+const publicClient = createPublicClient({
+  chain,
+  transport: http(process.env.MONAD_RPC_URL || chain.rpcUrls.default.http[0], {
+    timeout: 8000,
+    retryCount: 3,
+    retryDelay: 1000,
+  }),
+});
 export function config() {
   const raw = process.env.MONFLIP_CONTRACT;
   const key = process.env.ORACLE_PRIVATE_KEY;
