@@ -473,12 +473,42 @@ export default function Home() {
     t("Süre aşımı · İade", "Timeout · Refunded"),
   ];
   return (
-    <main className="shell">
+    <main className="shell trading-shell">
       <header>
         <a className="brand" href="/">
-          ◈ <span>monflip</span>
+          <span className="brand-mark">◈</span>
+          <span>
+            mon<b>flip</b>
+          </span>
         </a>
         <span className="network">Monad Testnet</span>
+        {account && (
+          <div className="balance-bar">
+            <span>
+              <span className="balance-label">{t("Bakiye", "Balance")}</span>
+              <strong>
+                {mon(balance)} <small>test MON</small>
+              </strong>
+            </span>
+            <div>
+              <button
+                className="primary"
+                disabled={!config.contract || busy}
+                onClick={() => setModal("deposit")}
+              >
+                <Plus size={15} />
+                {t("Yatır", "Deposit")}
+              </button>
+              <button
+                disabled={!config.contract || busy || balance === 0n}
+                onClick={() => setModal("withdraw")}
+              >
+                <ArrowDownToLine size={15} />
+                {t("Çek", "Withdraw")}
+              </button>
+            </div>
+          </div>
+        )}
         <div className="header-actions">
           <button
             className="language"
@@ -506,7 +536,10 @@ export default function Home() {
       </header>
       <div className="intro">
         <div>
-          <h1>{t("Piyasanın bir sonraki yönü.", "The market’s next move.")}</h1>
+          <h1>
+            <span className="live-dot" />
+            {t("Piyasanın bir sonraki yönü", "The market’s next move")}
+          </h1>
           <p>
             {t(
               "Varlığını seç. Yönünü belirle.",
@@ -541,32 +574,6 @@ export default function Home() {
             )}
           </span>
           <a href="/setup">{t("Kurulum", "Setup")} →</a>
-        </div>
-      )}
-      {account && (
-        <div className="balance-bar">
-          <span>
-            {t("Kullanılabilir bakiye", "Available balance")}{" "}
-            <strong>
-              {mon(balance)} <small>test MON</small>
-            </strong>
-          </span>
-          <div>
-            <button
-              disabled={!config.contract || busy}
-              onClick={() => setModal("deposit")}
-            >
-              <Plus size={15} />
-              {t("Yatır", "Deposit")}
-            </button>
-            <button
-              disabled={!config.contract || busy || balance === 0n}
-              onClick={() => setModal("withdraw")}
-            >
-              <ArrowDownToLine size={15} />
-              {t("Çek", "Withdraw")}
-            </button>
-          </div>
         </div>
       )}
       <div className="workspace">
@@ -614,7 +621,7 @@ export default function Home() {
               >
                 <defs>
                   <linearGradient id="area" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#9b83ff" stopOpacity=".2" />
+                    <stop offset="0%" stopColor="#9b83ff" stopOpacity=".38" />
                     <stop offset="100%" stopColor="#9b83ff" stopOpacity="0" />
                   </linearGradient>
                 </defs>
@@ -628,6 +635,32 @@ export default function Home() {
                     stroke="#252938"
                     strokeDasharray="3 5"
                   />
+                ))}
+                {[40, 178, 316, 454, 592, 730].map((x) => (
+                  <line
+                    key={x}
+                    x1={x}
+                    x2={x}
+                    y1="35"
+                    y2="235"
+                    stroke="#272236"
+                    strokeOpacity=".65"
+                  />
+                ))}
+                {[55, 115, 175, 235].map((y) => (
+                  <text
+                    key={y}
+                    x="778"
+                    y={y - 7}
+                    textAnchor="end"
+                    fill="#77718c"
+                    fontSize="10"
+                  >
+                    {format(
+                      min + ((230 - y) / 175) * span,
+                      asset === 2 ? 5 : 2,
+                    )}
+                  </text>
                 ))}
                 <path d={chartPath + " L730,255 L40,255 Z"} fill="url(#area)" />
                 <path
@@ -684,8 +717,29 @@ export default function Home() {
         </section>
         <aside className="ticket">
           <div className="ticket-heading">
-            <h2>{t("İşlem aç", "Place a prediction")}</h2>
+            <h2>{t("İşlem yap", "Make a prediction")}</h2>
             <span className="profit">+80%</span>
+          </div>
+          <p className="ticket-subtitle">
+            {t(
+              "Fiyatın seçilen sürede yönünü tahmin et.",
+              "Predict the price direction over your chosen time.",
+            )}
+          </p>
+          <div className="ticket-assets" aria-label={t("Varlık", "Asset")}>
+            {assets.map((a, i) => (
+              <button
+                key={a.symbol}
+                aria-pressed={asset === i}
+                className={asset === i ? "selected" : ""}
+                onClick={() => setAsset(i)}
+              >
+                <span className={"coin coin-" + i}>
+                  {i === 0 ? "₿" : i === 1 ? "Ξ" : "◈"}
+                </span>
+                {a.symbol}
+              </button>
+            ))}
           </div>
           <label>{t("Süre", "Duration")}</label>
           <RadioGroup
@@ -731,26 +785,38 @@ export default function Home() {
               </button>
             ))}
           </div>
-          <div className="payout">
-            <span>{t("Kazanırsan toplam", "Total if you win")}</span>
-            <strong>{format(Number(amount || 0) * 1.8, 2)} MON</strong>
+          <div className="payout-summary">
+            <div>
+              <span>{t("Net kazanç (+80%)", "Net profit (+80%)")}</span>
+              <strong className="positive">
+                +{format(Math.max(0, Number(amount) || 0) * 0.8, 2)} MON
+              </strong>
+            </div>
+            <div>
+              <span>{t("Kazanırsan toplam", "Total if you win")}</span>
+              <strong>
+                {format(Math.max(0, Number(amount) || 0) * 1.8, 2)} MON
+              </strong>
+            </div>
           </div>
-          <button
-            disabled={!canTrade}
-            onClick={() => open(true)}
-            className="up"
-          >
-            <ArrowUpRight size={21} />
-            {t("Yukarı", "Up")}
-          </button>
-          <button
-            disabled={!canTrade}
-            onClick={() => open(false)}
-            className="down"
-          >
-            <ArrowDownRight size={21} />
-            {t("Aşağı", "Down")}
-          </button>
+          <div className="direction-buttons">
+            <button
+              disabled={!canTrade}
+              onClick={() => open(true)}
+              className="up"
+            >
+              <ArrowUpRight size={21} />
+              {t("Yukarı", "Up")}
+            </button>
+            <button
+              disabled={!canTrade}
+              onClick={() => open(false)}
+              className="down"
+            >
+              <ArrowDownRight size={21} />
+              {t("Aşağı", "Down")}
+            </button>
+          </div>
           <p className="muted">
             {busy
               ? t(
