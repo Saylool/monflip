@@ -77,7 +77,7 @@ Arayüz Next.js ve React ile, cüzdan bağlantısı viem ile, akıllı sözleşm
 - Grafik, sayfa açıkken alınan gerçek gözlemlerden oluşur. Hazır tarihsel grafik veya uydurma fiyat noktaları kullanılmaz.
 - Süre, düğmeye basıldığında değil, işlem zincire dahil edildiğinde başlar. Kapanış fiyatı, süre dolduktan sonra sonuçlandırma sırasında alınan gözlemdir; bitiş saniyesindeki kesin tarihsel fiyat garanti edilmez.
 - Servis 120 saniyelik ek süre içinde sonuçlandıramazsa `refundExpired` çağrısıyla işlem tutarının tamamı iade edilebilir. Arayüz uygun işlemlerde **İade al** seçeneğini gösterir.
-- Açık tarayıcı sonuçlandırmayı tetikler. Tarayıcı kapalıyken de otomatik sonuçlandırma için ayrı bir **keeper** süreci gerekir. Vercel yayını tek başına sürekli çalışan bir keeper sağlamaz.
+- **Tarayıcının veya bilgisayarının açık kalması gerekmez.** İmzalı teklif verilmeden önce Vercel Workflow işi kaydedilir. İş, cüzdanın işlem sırasını zincirde izler; işlem onaylanınca bitiş zamanına kadar bekler ve otomatik sonuçlandırır. İptal edilen veya kullanılmayan teklifler izlemeyi sonlandırır. Ağ hatalarında yeniden dener; ödeme daha önce yapılmışsa tekrar ödeme yapmaz. Uzun servis kesintilerinde sözleşmenin zaman aşımı iadesi geçerlidir.
 - Servis adresi sözleşmede değiştirilemez. Özel anahtar kaybolursa yeni kurulum gerekir. Gecikmeli fiyatlar daha hızlı fiyat kaynaklarıyla istismar edilebilir; bu model gerçek para veya mainnet için tasarlanmamıştır.
 
 ## Bilgisayarında çalıştır
@@ -118,9 +118,11 @@ Yerelde `.env.local`, Vercel’de proje ortam değişkenleri kullanılır.
 
 Kurulum işlemi başarılı oldu ama adres kaybolduysa tekrar kurulum yapma. `/setup` ekranında kurulum işlem kimliğini kullanarak sözleşmeyi geri bulabilirsin.
 
-### Tarayıcı kapalıyken sonuçlandırma
+### Otomatik sonuçlandırma
 
-Gerekli ortam değişkenlerini içeren `.env.local` dosyasıyla, sürekli açık bir sunucuda çalıştır:
+Vercel dağıtımında Workflow SDK kalıcı işleri çalıştırır; ayrı bilgisayar veya sürekli açık tarayıcı gerekmez. İşler Vercel panelinin Workflows bölümünden izlenebilir. Yerel geliştirmede bu işleri yerel sunucu çalıştırır; bilgisayar kapalıyken devam etme özelliği yayın ortamına aittir. Vercel’in ücretsiz kullanım kotaları geçerlidir.
+
+Alternatif barındırma veya kurtarma için eski bağımsız keeper da kullanılabilir. Gerekli ortam değişkenlerini içeren `.env.local` dosyasıyla çalıştır:
 
 ```sh
 npm run keeper
@@ -135,7 +137,7 @@ Bu küçük demo için tek keeper kullan. Birden fazla eşzamanlı servis, aynı
 3. İşlem işlevleri için sunucu ortam değişkenlerini ekle. İlk yayında servis anahtarıyla başla; `/setup` tamamlandıktan sonra sözleşme adresini ekleyip yeniden yayınla.
 4. Git bağlantısı kurulduğunda `main` dalına gönderilen değişiklikler otomatik yayınlanır.
 
-`npm run build`, standart Next.js üretim derlemesini oluşturur. Keeper ayrı bir sürekli çalışan sunucuda barındırılmalıdır. Depodaki eski `.openai/hosting.json` dosyası önceki yayının kaydıdır; Vercel tarafından kullanılmaz.
+`npm run build`, standart Next.js üretim derlemesini oluşturur. Otomatik sonuçlandırma Vercel Workflow tarafından yürütülür; Vercel üzerinde ayrıca keeper çalıştırmak gerekmez. Depodaki eski `.openai/hosting.json` dosyası önceki yayının kaydıdır; Vercel tarafından kullanılmaz.
 
 ## Kontroller
 
@@ -155,6 +157,7 @@ Sözleşme testleri yerel bir EVM üzerinde gerçek imzalar ve işlenmiş işlem
 | `app/setup/page.tsx` | Kurulum, servis fonlama ve sözleşme kurtarma |
 | `app/api/` | Fiyat, yapılandırma, imzalı teklif ve sonuçlandırma uçları |
 | `contracts/MonFlip.sol` | Bakiye, kasa, tahmin ve ödeme kuralları |
+| `workflows/prediction.ts` | Tarayıcıdan bağımsız kalıcı işlem takibi ve sonuçlandırma |
 | `scripts/keeper.mjs` | Bağımsız sonuçlandırma süreci |
 | `lib/contract.json` | Derlenmiş sözleşme ABI’si ve dağıtım kodu |
 

@@ -1,5 +1,7 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+import { start } from "workflow/api";
+import { watchPrediction } from "@/workflows/prediction";
 import { z } from "zod";
 import { encodeAbiParameters, keccak256, isAddress, parseEther } from "viem";
 import { oracle, publicClient, abi } from "@/lib/server";
@@ -33,6 +35,14 @@ export async function POST(req: Request) {
     if (stake < parseEther("0.01") || stake > parseEther("10"))
       return Response.json({ error: "STAKE_LIMIT" }, { status: 400 });
     const o = oracle();
+    const balance = (await publicClient.readContract({
+      address: o.address,
+      abi,
+      functionName: "balances",
+      args: [user],
+    })) as bigint;
+    if (balance < stake)
+      return Response.json({ error: "INSUFFICIENT_BALANCE" }, { status: 400 });
     const data = await getPrices();
     const p = data.prices[assets[asset].symbol];
     if (!p || Date.now() / 1000 - p.updatedAt > 600)
@@ -73,9 +83,24 @@ export async function POST(req: Request) {
         ],
       ),
     );
+    // Enqueue BEFORE releasing a usable quote: closing the browser immediately
+    // after the on-chain open cannot lose the settlement registration.
+    const run = await start(watchPrediction, [
+      {
+        contract: o.address,
+        user,
+        nonce: nonce.toString(),
+        validUntil: Number(validUntil),
+      },
+    ]);
     const signature = await o.account.signMessage({ message: { raw: digest } });
     return Response.json(
-      { price: price.toString(), validUntil: validUntil.toString(), signature },
+      {
+        price: price.toString(),
+        validUntil: validUntil.toString(),
+        signature,
+        settlementRunId: run.runId,
+      },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch {

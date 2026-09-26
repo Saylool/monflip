@@ -863,6 +863,12 @@ export default function Home() {
                         "Min 0.01 · Max 10 test MON",
                       )}
           </p>
+          <p className="muted">
+            {t(
+              "İşlemin onaylandıktan sonra sayfayı kapatabilirsin. Sonuç otomatik olarak bakiyene işlenir.",
+              "Once confirmed, you can close this page. Settlement updates your balance automatically.",
+            )}
+          </p>
           <div className="rule">
             <ShieldCheck size={15} />
             {t("Eşit fiyat = tutarın iadesi", "Equal price = full refund")}

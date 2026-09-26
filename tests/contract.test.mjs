@@ -219,3 +219,28 @@ test("downward predictions and multiple simultaneous winners remain fully backed
     await f.close();
   }
 });
+
+test("quote nonce locates its trade without a browser receipt, even with interleaved users", async () => {
+  const f = await fixture();
+  try {
+    await f.write(1, "deposit", [], E("30"));
+    await f.write(2, "deposit", [], E("20"));
+    const user = f.accounts[1].address;
+    const nonce = await f.read("nonces", [user]);
+    assert.deepEqual(await f.read("tradeIds", [user, nonce, 1n]), []);
+    const quote = await f.quote();
+    await f.write(2, "open", await f.quote({ who: 2 }));
+    await f.write(1, "open", quote);
+    assert.deepEqual(await f.read("tradeIds", [user, nonce, 1n]), [1n]);
+    assert.equal(await f.read("nonces", [user]), nonce + 1n);
+    await assert.rejects(f.write(1, "open", quote));
+    await f.write(1, "open", await f.quote());
+    assert.deepEqual(await f.read("tradeIds", [user, nonce, 1n]), [1n]);
+    assert.deepEqual(await f.read("tradeIds", [user, nonce + 1n, 1n]), [2n]);
+    await f.advance(31);
+    await f.write(0, "settle", [1n, 100000000n]);
+    assert.deepEqual(await f.read("tradeIds", [user, nonce, 1n]), [1n]);
+  } finally {
+    await f.close();
+  }
+});

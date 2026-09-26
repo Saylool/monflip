@@ -32,7 +32,7 @@ A **trusted centralized relay**, not a decentralized oracle, signs entry quotes 
 
 The duration starts when `open` is included on chain, not when the user clicks. The close price is the CoinGecko observation obtained on settlement after expiry; **it is not a guaranteed exact historical price at the expiry second**. As requested for this demo, CoinGecko source timestamps up to 10 minutes old are accepted. Repeated cached prices can cause refunds. The UI shows the source update time. Request failures never fabricate a price.
 
-There is a 120-second settlement grace period. If settlement has not occurred by then, anyone can call `refundExpired` for a full refund. Settlement is attempted by the open browser; run the independent keeper for automatic completion even when browsers close. The deployed site alone is not a scheduled keeper. Run only one keeper and avoid horizontal relay replicas for this small demo; pending nonce collisions are retried. Anyone can trigger an eligible settlement but cannot choose its price.
+There is a 120-second settlement grace period. If settlement has not occurred by then, anyone can call `refundExpired` for a full refund. A durable Vercel Workflow is registered before a signed quote is returned. It discovers the on-chain trade by the wallet’s nonce/account-trade index, sleeps until expiry, and settles with retries even after the browser closes. Unused quotes stop watching after expiry. No always-on user computer is needed. Workflow quotas apply; extended outages can still require the timeout refund. The browser endpoint remains a fallback. Run only one keeper and avoid horizontal relay replicas for this small demo; pending nonce collisions are retried. Anyone can trigger an eligible settlement but cannot choose its price.
 
 These relaxed timing rules are intentional demo limitations and can be exploited with faster external prices. **Do not fund with real assets or deploy to mainnet.** The constructor restricts deployment to Monad testnet and the local test chain.
 
@@ -62,7 +62,7 @@ Never commit `.env.local`, a private key or a mnemonic. Generate a dedicated tes
 3. Deploy via the setup page, choosing an initial house reserve (default 10 test MON). The transaction is signed in your wallet, never on the server.
    If deployment succeeded but the address was lost, recover it on `/setup` using the deployment transaction hash instead of deploying again.
 4. Set the returned address as `MONFLIP_CONTRACT` in the server environment and republish / restart.
-5. Start the independent settlement runner on an always-on host:
+5. Vercel runs the durable settlement workflow automatically. For alternative hosting or recovery, the optional standalone runner can be started on an always-on host:
 
 ```sh
 npm run keeper
@@ -79,7 +79,7 @@ The price screen builds and runs without any secrets. For wallet trading, add th
 - `COINGECKO_API_KEY`: optional Demo API key.
 - `MONAD_RPC_URL`: optional; defaults to the Monad testnet public RPC.
 
-Deploy first with the relay key, use `/setup`, then add the returned contract address and redeploy. The relay needs test MON for gas. Vercel runs the API routes as Node.js functions; it does **not** run `npm run keeper` continuously. Use a separate always-on worker for the keeper. Browser-triggered settlement and timeout refunds remain available. In-memory caching / serialization is per function instance, not a global lock.
+Deploy first with the relay key, use `/setup`, then add the returned contract address and redeploy. The relay needs test MON for gas. Vercel runs the API routes as Node.js functions; it does **not** run `npm run keeper` continuously. The Workflow SDK provides durable background settlement on Vercel; a separate keeper host is optional. Local development workflows require the local server to stay running. Browser-triggered settlement and timeout refunds remain available. In-memory caching / serialization is per function instance, not a global lock.
 
 `.env.local` remains ignored by Git and Vercel uploads. Do not paste secret values into source, deployment URLs or chat. The old `.openai/hosting.json` records the previous Sites deployment and is not used by Vercel.
 
@@ -99,6 +99,7 @@ Contract integration tests use a local EVM, real signatures and mined transactio
 - `app/page.tsx`: responsive bilingual trading surface and browser wallet integration.
 - `app/setup/page.tsx`: wallet-signed deployment and relay funding.
 - `app/api/*`: CoinGecko proxy, public configuration, signed entry quotes and settlement relay.
+- `workflows/prediction.ts`: durable quote watcher and automatic settlement.
 - `scripts/keeper.mjs`: independent settlement service.
 - `lib/contract.json`: ABI and compiled deployment bytecode; regenerate after contract changes.
 
