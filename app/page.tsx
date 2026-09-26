@@ -43,6 +43,7 @@ type Config = {
   contract: Address | null;
   oracle: Address | null;
   ready: boolean;
+  status?: string;
 };
 export default function Home() {
   const [lang, setLang] = useState<"tr" | "en">("tr");
@@ -93,12 +94,18 @@ export default function Home() {
   useEffect(() => {
     const l = localStorage.getItem("monflip.language");
     if (l === "en") setLang(l);
-    fetch("/api/config")
-      .then((r) => r.json() as Promise<Config>)
-      .then(setConfig)
-      .catch(() => {});
+    const refreshConfig = () =>
+      fetch("/api/config")
+        .then((r) => r.json() as Promise<Config>)
+        .then(setConfig)
+        .catch(() => {});
+    refreshConfig();
+    const configTimer = setInterval(refreshConfig, 15000);
     const tick = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(tick);
+    return () => {
+      clearInterval(tick);
+      clearInterval(configTimer);
+    };
   }, []);
   useEffect(() => {
     document.documentElement.lang = lang;
@@ -521,8 +528,16 @@ export default function Home() {
           <ShieldCheck size={17} />
           <span>
             {t(
-              "Fiyatları inceleyebilirsin. İşlemler, test ağı kurulumu tamamlandığında açılacak.",
-              "Explore prices now. Trading opens when testnet setup is complete.",
+              config.status === "relay_unfunded"
+                ? "Sözleşme bağlı. Sonuçlandırma servisinin ağ ücreti için kurulum ekranından 0,1 test MON gönder."
+                : config.status === "network_unavailable"
+                  ? "Test ağına ulaşılamıyor. Biraz sonra tekrar denenecek."
+                  : "Fiyatları inceleyebilirsin. İşlemler, test ağı kurulumu tamamlandığında açılacak.",
+              config.status === "relay_unfunded"
+                ? "Contract connected. Fund the settlement service with 0.1 test MON from Setup."
+                : config.status === "network_unavailable"
+                  ? "Testnet unavailable. Retrying shortly."
+                  : "Explore prices now. Trading opens when testnet setup is complete.",
             )}
           </span>
           <a href="/setup">{t("Kurulum", "Setup")} →</a>
@@ -673,11 +688,27 @@ export default function Home() {
             <span className="profit">+80%</span>
           </div>
           <label>{t("Süre", "Duration")}</label>
-          <RadioGroup className="durations" value={String(duration)} onValueChange={value=>setDuration(Number(value))} aria-label={t("Süre", "Duration")}>
-            {[30,60,300].map(d=><label key={d} className={"duration-choice "+(duration===d?"selected":"")}>
-              <RadioGroupItem value={String(d)} className="sr-only" />
-              {d===30?t("30 sn","30 sec"):d===60?t("1 dk","1 min"):t("5 dk","5 min")}
-            </label>)}
+          <RadioGroup
+            className="durations"
+            value={String(duration)}
+            onValueChange={(value) => setDuration(Number(value))}
+            aria-label={t("Süre", "Duration")}
+          >
+            {[30, 60, 300].map((d) => (
+              <label
+                key={d}
+                className={
+                  "duration-choice " + (duration === d ? "selected" : "")
+                }
+              >
+                <RadioGroupItem value={String(d)} className="sr-only" />
+                {d === 30
+                  ? t("30 sn", "30 sec")
+                  : d === 60
+                    ? t("1 dk", "1 min")
+                    : t("5 dk", "5 min")}
+              </label>
+            ))}
           </RadioGroup>
           <label htmlFor="amount">{t("İşlem tutarı", "Amount")}</label>
           <div className="amount">
@@ -733,8 +764,12 @@ export default function Home() {
                   )
                 : !config.ready
                   ? t(
-                      "Test ağı kurulumu bekleniyor.",
-                      "Waiting for testnet setup.",
+                      config.status === "relay_unfunded"
+                        ? "Sonuçlandırma servisi için test MON gerekiyor."
+                        : "Test ağı kurulumu bekleniyor.",
+                      config.status === "relay_unfunded"
+                        ? "Settlement service needs test MON."
+                        : "Waiting for testnet setup.",
                     )
                   : balance < stake
                     ? t("İşlem için bakiye yatır.", "Deposit funds to predict.")
