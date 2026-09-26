@@ -4,6 +4,7 @@ import {
   createWalletClient,
   custom,
   parseEther,
+  isHex,
   type Address,
   type Hex,
 } from "viem";
@@ -16,6 +17,9 @@ export default function Setup() {
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
     [hash, setHash] = useState<Hex>(),
+    [deploymentHash, setDeploymentHash] = useState<Hex>(),
+    [recoveryHash, setRecoveryHash] = useState(""),
+    [connected, setConnected] = useState(false),
     [en, setEn] = useState(false);
   const t = (tr: string, enText: string) => (en ? enText : tr);
   useEffect(() => {
@@ -24,9 +28,92 @@ export default function Setup() {
       .then((c) => {
         setOracle(c.oracle);
         setAddress(c.contract);
-      });
+        setConnected(!!c.contract);
+        if (!c.contract && c.oracle) {
+          const saved = localStorage.getItem(
+            "monflip.deployment." + c.oracle.toLowerCase(),
+          );
+          if (saved && isHex(saved) && saved.length === 66) {
+            setDeploymentHash(saved);
+            setHash(saved);
+            setRecoveryHash(saved);
+            recover(saved, c.oracle).catch(() => {});
+          }
+        }
+      })
+      .catch(() =>
+        setMessage(
+          "Kurulum bilgisi alınamadı. / Setup information unavailable.",
+        ),
+      );
     setEn(localStorage.getItem("monflip.language") === "en");
   }, []);
+  async function recover(tx: Hex, expectedOracle: Address) {
+    const receipt = await publicClient.getTransactionReceipt({ hash: tx });
+    if (receipt.status !== "success" || !receipt.contractAddress)
+      throw new Error(
+        t(
+          "Bu işlem başarılı bir sözleşme kurulumu değil.",
+          "This is not a successful contract deployment.",
+        ),
+      );
+    const transaction = await publicClient.getTransaction({ hash: tx });
+    if (
+      !transaction.input
+        .toLowerCase()
+        .startsWith(contract.bytecode.toLowerCase())
+    )
+      throw new Error(
+        t(
+          "Bu işlem MonFlip sözleşmesine ait değil.",
+          "This is not a MonFlip deployment.",
+        ),
+      );
+    const signer = (await publicClient.readContract({
+      address: receipt.contractAddress,
+      abi: contract.abi,
+      functionName: "oracle",
+    })) as Address;
+    if (signer.toLowerCase() !== expectedOracle.toLowerCase())
+      throw new Error(
+        t(
+          "Sözleşmenin fiyat servisi farklı.",
+          "Contract uses a different price service.",
+        ),
+      );
+    localStorage.setItem(
+      "monflip.deployment." + expectedOracle.toLowerCase(),
+      tx,
+    );
+    setDeploymentHash(tx);
+    setHash(tx);
+    setAddress(receipt.contractAddress);
+    setMessage(
+      t(
+        "Mevcut sözleşme bulundu. Yeniden kurulum yapmana gerek yok.",
+        "Existing contract found. No new deployment needed.",
+      ),
+    );
+  }
+  async function restore() {
+    if (!oracle) return;
+    setBusy(true);
+    try {
+      const tx = recoveryHash.trim().split("/tx/").pop()!.split(/[?#]/)[0];
+      if (!isHex(tx) || tx.length !== 66)
+        throw new Error(
+          t(
+            "Geçerli işlem kimliğini veya bağlantısını gir.",
+            "Enter a valid transaction hash or link.",
+          ),
+        );
+      await recover(tx, oracle);
+    } catch (e: any) {
+      setMessage(e.shortMessage || e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
   async function execute(mode: "deploy" | "fund") {
     setBusy(true);
     setMessage("");
@@ -52,6 +139,13 @@ export default function Setup() {
       const [account] = await w.requestAddresses();
       let tx: Hex;
       if (mode === "deploy") {
+        if (address || deploymentHash)
+          throw new Error(
+            t(
+              "Mevcut kurulum işlemini kontrol et; yeniden ödeme yapma.",
+              "Check the existing deployment; do not pay again.",
+            ),
+          );
         if (Number(reserve) < 1 || Number(reserve) > 1000)
           throw new Error(
             t(
@@ -72,6 +166,11 @@ export default function Setup() {
           to: oracle,
           value: parseEther("0.1"),
         });
+      }
+      if (mode === "deploy") {
+        localStorage.setItem("monflip.deployment." + oracle.toLowerCase(), tx);
+        setDeploymentHash(tx);
+        setRecoveryHash(tx);
       }
       setHash(tx);
       const receipt = await publicClient.waitForTransactionReceipt({
@@ -103,6 +202,40 @@ export default function Setup() {
             "This page is for project setup. Approve transactions in your wallet; never share your private key.",
           )}
         </p>
+        <div className="notice">
+          {t(
+            "Kurulumda yatırılan MON platformun ödeme kasasıdır; kişisel işlem bakiyen değildir. İşlem bakiyesi ana ekrandaki Yatır düğmesinden eklenir.",
+            "MON sent during setup funds the house reserve, not your trading balance. Add trading funds using Deposit on the main screen.",
+          )}
+        </div>
+        {!connected && (
+          <section className="recovery">
+            <h2>{t("Daha önce kurulum yaptın mı?", "Already deployed?")}</h2>
+            <p>
+              {t(
+                "Tekrar MON gönderme. Cüzdan geçmişindeki kurulum işleminin bağlantısını veya kimliğini gir.",
+                "Do not send MON again. Enter the deployment transaction link or hash from wallet activity.",
+              )}
+            </p>
+            <label htmlFor="recovery">
+              {t("İşlem kimliği / bağlantısı", "Transaction hash / link")}
+            </label>
+            <input
+              id="recovery"
+              type="text"
+              value={recoveryHash}
+              onChange={(e) => setRecoveryHash(e.target.value)}
+              style={{ width: "100%" }}
+              placeholder="0x…"
+            />
+            <button
+              disabled={busy || !oracle || !recoveryHash.trim()}
+              onClick={restore}
+            >
+              {t("Mevcut sözleşmeyi bul", "Recover existing contract")}
+            </button>
+          </section>
+        )}
         <ol>
           <li>
             <h2>{t("Test MON edin", "Get test MON")}</h2>
@@ -164,7 +297,7 @@ export default function Setup() {
             />
             <button
               className="primary"
-              disabled={busy || !oracle || !!address}
+              disabled={busy || !oracle || !!address || !!deploymentHash}
               onClick={() => execute("deploy")}
             >
               {t("Cüzdanda onayla ve kur", "Approve and deploy in wallet")}
@@ -179,8 +312,12 @@ export default function Setup() {
               </button>
               <p>
                 {t(
-                  "Bu herkese açık adresi Codex sohbetine gönder; ortak site bağlantısı tamamlanacak.",
-                  "Send this public address to the Codex chat to complete site configuration.",
+                  connected
+                    ? "Sözleşme siteye bağlı. Ana ekrandan kişisel bakiyene test MON yatırabilirsin."
+                    : "Bu herkese açık adresi Codex sohbetine gönder; ortak site bağlantısı tamamlanacak.",
+                  connected
+                    ? "Contract connected. Deposit test MON into your trading balance on the main screen."
+                    : "Send this public address to the Codex chat to complete site configuration.",
                 )}
               </p>
             </li>
