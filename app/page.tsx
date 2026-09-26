@@ -91,6 +91,36 @@ export default function Home() {
     [modal, setModal] = useState<"deposit" | "withdraw" | null>(null),
     [cash, setCash] = useState("1"),
     [now, setNow] = useState(Date.now());
+  const [histories, setHistories] = useState<
+    Record<string, { time: number; price: number }[]>
+  >({});
+  const [historyError, setHistoryError] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    const symbol = assets[asset].symbol;
+    setHistoryError(false);
+    const load = async () => {
+      try {
+        const response = await fetch(`/api/history?asset=${symbol}`);
+        if (!response.ok) throw new Error("HISTORY_UNAVAILABLE");
+        const data = (await response.json()) as {
+          points: { time: number; price: number }[];
+        };
+        if (alive) {
+          setHistories((prev) => ({ ...prev, [symbol]: data.points }));
+          setHistoryError(false);
+        }
+      } catch {
+        if (alive) setHistoryError(true);
+      }
+    };
+    load();
+    const timer = setInterval(load, 60000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [asset]);
   const [networkError, setNetworkError] = useState(false);
   const refreshSequence = useRef(0);
   const refreshPending = useRef<{ key: string; sequence: number } | null>(null);
@@ -442,15 +472,30 @@ export default function Home() {
     stake <= balance &&
     reserve !== undefined &&
     (stake * 80n) / 100n <= reserve;
-  const chart = points[assets[asset].symbol] || [];
+  const chart = [
+    ...new Map(
+      [
+        ...(histories[assets[asset].symbol] || []),
+        ...(points[assets[asset].symbol] || []),
+      ].map((p) => [p.time, p]),
+    ).values(),
+  ]
+    .filter((p) => p.time >= now / 1000 - 3600)
+    .sort((a, b) => a.time - b.time);
   const min = chart.length ? Math.min(...chart.map((p) => p.price)) : 0;
   const max = chart.length ? Math.max(...chart.map((p) => p.price)) : 1;
-  const span = Math.max(max - min, max * 0.0001);
+  const padding = Math.max((max - min) * 0.12, max * 0.00005);
+  const lower = min - padding;
+  const span = max - min + padding * 2;
+  const chartStart = chart[0]?.time || 0;
+  const chartEnd = chart[chart.length - 1]?.time || chartStart;
+  const chartX = (time: number) =>
+    chart.length === 1
+      ? 385
+      : 40 + ((time - chartStart) / Math.max(1, chartEnd - chartStart)) * 690;
+  const chartY = (price: number) => 230 - ((price - lower) / span) * 175;
   const chartPath = chart
-    .map(
-      (p, i) =>
-        `${i === 0 ? "M" : "L"}${40 + (i / Math.max(1, chart.length - 1)) * 690},${230 - ((p.price - min) / span) * 175}`,
-    )
+    .map((p, i) => `${i === 0 ? "M" : "L"}${chartX(p.time)},${chartY(p.price)}`)
     .join(" ");
   const statuses = [
     t("Açık", "Open"),
@@ -597,7 +642,7 @@ export default function Home() {
             </small>
           </div>
           <div className="chart-area">
-            {chart.length > 1 ? (
+            {chart.length > 0 ? (
               <svg
                 viewBox="0 0 800 275"
                 role="img"
@@ -644,12 +689,49 @@ export default function Home() {
                     fontSize="10"
                   >
                     {format(
-                      min + ((230 - y) / 175) * span,
+                      lower + ((230 - y) / 175) * span,
                       asset === 2 ? 5 : 2,
                     )}
                   </text>
                 ))}
-                <path d={chartPath + " L730,255 L40,255 Z"} fill="url(#area)" />
+                {chart.length > 1 && (
+                  <path
+                    d={chartPath + " L730,255 L40,255 Z"}
+                    fill="url(#area)"
+                  />
+                )}
+                {chart.length === 1 && (
+                  <line
+                    x1="40"
+                    x2="730"
+                    y1={chartY(chart[0].price)}
+                    y2={chartY(chart[0].price)}
+                    stroke="#aa91ff"
+                    strokeDasharray="4 6"
+                    opacity=".5"
+                  />
+                )}
+                <circle
+                  cx={chartX(chart[chart.length - 1].time)}
+                  cy={chartY(chart[chart.length - 1].price)}
+                  r="4"
+                  fill="#c9b1ff"
+                  stroke="#6d42ae"
+                  strokeWidth="3"
+                />
+                {chart.length === 1 && (
+                  <text
+                    x="400"
+                    y={chartY(chart[0].price) - 16}
+                    fill="#b7a8cd"
+                    fontSize="12"
+                  >
+                    {t(
+                      "Son fiyat · geçmiş yükleniyor",
+                      "Latest price · loading history",
+                    )}
+                  </text>
+                )}
                 <path
                   d={chartPath}
                   stroke="#aa91ff"
@@ -677,10 +759,7 @@ export default function Home() {
                         "Fiyat kaynağına ulaşılamıyor. Yeniden deneniyor.",
                         "Price source unavailable. Retrying.",
                       )
-                    : t(
-                        "Gerçek fiyat noktaları geldikçe grafik oluşacak.",
-                        "The chart builds as real price updates arrive.",
-                      )}
+                    : t("Fiyat grafiği yükleniyor…", "Loading price chart…")}
                 </span>
               </div>
             )}
@@ -691,14 +770,19 @@ export default function Home() {
               target="_blank"
               rel="noreferrer"
             >
-              CoinGecko · USD
+              CoinGecko · USD · {t("Son 1 saat", "Last hour")}
             </a>
             <span>
-              {priceError
-                ? t("Bağlantı bekleniyor", "Reconnecting")
-                : current
-                  ? `${t("Son veri", "Last update")} ${new Date(current.updatedAt * 1000).toLocaleTimeString()}`
-                  : "—"}
+              {historyError
+                ? t(
+                    "Fiyat geçmişi yeniden yükleniyor",
+                    "Retrying price history",
+                  )
+                : priceError
+                  ? t("Bağlantı bekleniyor", "Reconnecting")
+                  : current
+                    ? `${t("Son veri", "Last update")} ${new Date(current.updatedAt * 1000).toLocaleTimeString()}`
+                    : "—"}
             </span>
           </div>
         </section>

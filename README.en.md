@@ -26,7 +26,7 @@ You do not need to deploy a new contract to use the existing demo. **Setup reser
 
 ## Price and trust model
 
-CoinGecko `/simple/price` provides USD reference prices. The server caches responses for 25 seconds and the UI polls every 30 seconds. No synthetic prices or generated historical chart points are used. The graph consists of observations received while the page is open.
+CoinGecko `/simple/price` provides USD reference prices. The server caches responses for 25 seconds and the UI polls every 30 seconds. The chart loads the last hour of real CoinGecko historical observations on arrival, then merges live responses by source timestamp. History is sampled at roughly five-minute intervals and cached for 60 seconds; it is not a second-by-second feed. No synthetic prices are used.
 
 A **trusted centralized relay**, not a decentralized oracle, signs entry quotes and writes settlement prices. Quotes bind the wallet, contract, chain, asset, direction, duration, stake, price, deadline and account nonce. A dedicated relay wallet is immutable in the contract. Losing its key requires redeployment; an unresponsive relay cannot trap stakes indefinitely.
 
