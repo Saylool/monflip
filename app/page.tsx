@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import {
   createWalletClient,
   custom,
@@ -25,10 +25,10 @@ import {
   ExternalLink,
   Clock3,
   ShieldCheck,
-  Activity,
   ChevronDown,
 } from "lucide-react";
 import { chain, publicClient, abi, assets, type Trade } from "@/lib/chain";
+import { PriceChart, type CandlePoint } from "@/components/price-chart";
 import type { QuotePrice } from "@/lib/prices";
 declare global {
   interface Window {
@@ -94,6 +94,7 @@ export default function Home() {
   const [histories, setHistories] = useState<
     Record<string, { time: number; price: number }[]>
   >({});
+  const [candles, setCandles] = useState<Record<string, CandlePoint[]>>({});
   const [historyError, setHistoryError] = useState(false);
   useEffect(() => {
     let alive = true;
@@ -105,10 +106,15 @@ export default function Home() {
         if (!response.ok) throw new Error("HISTORY_UNAVAILABLE");
         const data = (await response.json()) as {
           points: { time: number; price: number }[];
+          candles?: CandlePoint[];
         };
         if (alive) {
           setHistories((prev) => ({ ...prev, [symbol]: data.points }));
-          setHistoryError(false);
+          setCandles((prev) => ({
+            ...prev,
+            [symbol]: data.candles?.length ? data.candles : prev[symbol] || [],
+          }));
+          setHistoryError(!data.candles?.length);
         }
       } catch {
         if (alive) setHistoryError(true);
@@ -472,31 +478,18 @@ export default function Home() {
     stake <= balance &&
     reserve !== undefined &&
     (stake * 80n) / 100n <= reserve;
-  const chart = [
-    ...new Map(
+  const chart = useMemo(
+    () =>
       [
-        ...(histories[assets[asset].symbol] || []),
-        ...(points[assets[asset].symbol] || []),
-      ].map((p) => [p.time, p]),
-    ).values(),
-  ]
-    .filter((p) => p.time >= now / 1000 - 3600)
-    .sort((a, b) => a.time - b.time);
-  const min = chart.length ? Math.min(...chart.map((p) => p.price)) : 0;
-  const max = chart.length ? Math.max(...chart.map((p) => p.price)) : 1;
-  const padding = Math.max((max - min) * 0.12, max * 0.00005);
-  const lower = min - padding;
-  const span = max - min + padding * 2;
-  const chartStart = chart[0]?.time || 0;
-  const chartEnd = chart[chart.length - 1]?.time || chartStart;
-  const chartX = (time: number) =>
-    chart.length === 1
-      ? 385
-      : 40 + ((time - chartStart) / Math.max(1, chartEnd - chartStart)) * 690;
-  const chartY = (price: number) => 230 - ((price - lower) / span) * 175;
-  const chartPath = chart
-    .map((p, i) => `${i === 0 ? "M" : "L"}${chartX(p.time)},${chartY(p.price)}`)
-    .join(" ");
+        ...new Map(
+          [
+            ...(histories[assets[asset].symbol] || []),
+            ...(points[assets[asset].symbol] || []),
+          ].map((p) => [p.time, p]),
+        ).values(),
+      ].sort((a, b) => a.time - b.time),
+    [histories, points, asset],
+  );
   const statuses = [
     t("Açık", "Open"),
     t("Kazandı", "Won"),
@@ -641,136 +634,20 @@ export default function Home() {
                 : t("Fiyat bekleniyor", "Waiting for price")}
             </small>
           </div>
-          <div className="chart-area">
-            {chart.length > 0 ? (
-              <svg
-                viewBox="0 0 800 275"
-                role="img"
-                aria-label={t(
-                  "CoinGecko fiyat grafiği, dolar",
-                  "CoinGecko price chart, US dollars",
-                )}
-              >
-                <defs>
-                  <linearGradient id="area" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#9b83ff" stopOpacity=".38" />
-                    <stop offset="100%" stopColor="#9b83ff" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-                {[55, 115, 175, 235].map((y) => (
-                  <line
-                    key={y}
-                    x1="20"
-                    x2="780"
-                    y1={y}
-                    y2={y}
-                    stroke="#252938"
-                    strokeDasharray="3 5"
-                  />
-                ))}
-                {[40, 178, 316, 454, 592, 730].map((x) => (
-                  <line
-                    key={x}
-                    x1={x}
-                    x2={x}
-                    y1="35"
-                    y2="235"
-                    stroke="#272236"
-                    strokeOpacity=".65"
-                  />
-                ))}
-                {[55, 115, 175, 235].map((y) => (
-                  <text
-                    key={y}
-                    x="778"
-                    y={y - 7}
-                    textAnchor="end"
-                    fill="#77718c"
-                    fontSize="10"
-                  >
-                    {format(
-                      lower + ((230 - y) / 175) * span,
-                      asset === 2 ? 5 : 2,
-                    )}
-                  </text>
-                ))}
-                {chart.length > 1 && (
-                  <path
-                    d={chartPath + " L730,255 L40,255 Z"}
-                    fill="url(#area)"
-                  />
-                )}
-                {chart.length === 1 && (
-                  <line
-                    x1="40"
-                    x2="730"
-                    y1={chartY(chart[0].price)}
-                    y2={chartY(chart[0].price)}
-                    stroke="#aa91ff"
-                    strokeDasharray="4 6"
-                    opacity=".5"
-                  />
-                )}
-                <circle
-                  cx={chartX(chart[chart.length - 1].time)}
-                  cy={chartY(chart[chart.length - 1].price)}
-                  r="4"
-                  fill="#c9b1ff"
-                  stroke="#6d42ae"
-                  strokeWidth="3"
-                />
-                {chart.length === 1 && (
-                  <text
-                    x="400"
-                    y={chartY(chart[0].price) - 16}
-                    fill="#b7a8cd"
-                    fontSize="12"
-                  >
-                    {t(
-                      "Son fiyat · geçmiş yükleniyor",
-                      "Latest price · loading history",
-                    )}
-                  </text>
-                )}
-                <path
-                  d={chartPath}
-                  stroke="#aa91ff"
-                  strokeWidth="2.5"
-                  fill="none"
-                />
-                <text x="750" y="28" fill="#9098ac" fontSize="12">
-                  USD
-                </text>
-                <text x="40" y="273" fill="#9098ac" fontSize="12">
-                  {new Date(chart[0].time * 1000).toLocaleTimeString()}
-                </text>
-                <text x="665" y="273" fill="#9098ac" fontSize="12">
-                  {new Date(
-                    chart[chart.length - 1].time * 1000,
-                  ).toLocaleTimeString()}
-                </text>
-              </svg>
-            ) : (
-              <div className="chart-empty">
-                <Activity size={28} />
-                <span>
-                  {priceError
-                    ? t(
-                        "Fiyat kaynağına ulaşılamıyor. Yeniden deneniyor.",
-                        "Price source unavailable. Retrying.",
-                      )
-                    : t("Fiyat grafiği yükleniyor…", "Loading price chart…")}
-                </span>
-              </div>
-            )}
-          </div>
+          <PriceChart
+            symbol={assets[asset].symbol}
+            lang={lang}
+            points={chart}
+            candles={candles[assets[asset].symbol] || []}
+            failed={historyError}
+          />
           <div className="chart-caption">
             <a
               href="https://www.coingecko.com"
               target="_blank"
               rel="noreferrer"
             >
-              CoinGecko · USD · {t("Son 1 saat", "Last hour")}
+              CoinGecko · USD · {t("Gerçek piyasa verisi", "Real market data")}
             </a>
             <span>
               {historyError
@@ -797,21 +674,6 @@ export default function Home() {
               "Predict the price direction over your chosen time.",
             )}
           </p>
-          <div className="ticket-assets" aria-label={t("Varlık", "Asset")}>
-            {assets.map((a, i) => (
-              <button
-                key={a.symbol}
-                aria-pressed={asset === i}
-                className={asset === i ? "selected" : ""}
-                onClick={() => setAsset(i)}
-              >
-                <span className={"coin coin-" + i}>
-                  {i === 0 ? "₿" : i === 1 ? <EthereumIcon /> : "◈"}
-                </span>
-                {a.symbol}
-              </button>
-            ))}
-          </div>
           <label>{t("Süre", "Duration")}</label>
           <RadioGroup
             className="durations"

@@ -26,7 +26,7 @@ You do not need to deploy a new contract to use the existing demo. **Setup reser
 
 ## Price and trust model
 
-CoinGecko `/simple/price` provides USD reference prices. The server caches responses for 25 seconds and the UI polls every 30 seconds. The chart loads the last hour of real CoinGecko historical observations on arrival, then merges live responses by source timestamp. History is sampled at roughly five-minute intervals and cached for 60 seconds; it is not a second-by-second feed. No synthetic prices are used.
+CoinGecko `/simple/price` provides USD reference prices. The server caches responses for 25 seconds and the UI polls every 30 seconds. The chart loads 24 hours of real CoinGecko history. The default candlestick view shows 30-minute OHLC candles; line view merges approximately five-minute observations with live responses. It supports 6/12/24-hour ranges, zoom, pan and crosshair readouts. History is cached for 60 seconds, not a second-by-second feed. No synthetic prices are used. Chart ranges are independent of prediction durations.
 
 A **trusted centralized relay**, not a decentralized oracle, signs entry quotes and writes settlement prices. Quotes bind the wallet, contract, chain, asset, direction, duration, stake, price, deadline and account nonce. A dedicated relay wallet is immutable in the contract. Losing its key requires redeployment; an unresponsive relay cannot trap stakes indefinitely.
 
@@ -104,3 +104,5 @@ Contract integration tests use a local EVM, real signatures and mined transactio
 - `lib/contract.json`: ABI and compiled deployment bytecode; regenerate after contract changes.
 
 Built with Next.js, React, viem and Solidity / OpenZeppelin. The source is MIT licensed.
+
+Charts use [TradingView Lightweight Charts™](https://www.tradingview.com/). [Third-party notice](public/chart-credits.txt).

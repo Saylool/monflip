@@ -74,7 +74,7 @@ Arayüz Next.js ve React ile, cüzdan bağlantısı viem ile, akıllı sözleşm
 
 - **Fiyat servisi merkezidir.** CoinGecko verisini imzalayan güvenilir bir servis cüzdanı kullanılır; bu yapı merkeziyetsiz bir oracle değildir.
 - Fiyat yanıtları sunucuda 25 saniye önbelleğe alınır; arayüz 30 saniyede bir sorgular. Demo, kaynak zamanı en fazla **10 dakika eski** olan fiyatları kabul eder. Aynı fiyatın tekrar gelmesi iadeyle sonuçlanabilir.
-- Grafik açılışta CoinGecko’nun son bir saatlik gerçek fiyat geçmişini yükler ve sayfa açıkken gelen fiyatlarla güncellenir. Geçmiş yaklaşık 5 dakikalık örnekler içerir; saniyelik fiyat hareketi değildir. Tarihsel veriler 60 saniye önbelleğe alınır; uydurma fiyat noktaları kullanılmaz.
+- Grafik CoinGecko’nun son 24 saatlik gerçek verisini yükler. Varsayılan mum görünümünde her mum 30 dakikalık açılış, yüksek, düşük ve kapanış fiyatlarını gösterir. Çizgi görünümü yaklaşık 5 dakikalık fiyat örneklerini canlı sorgu sonuçlarıyla birleştirir. 6/12/24 saat seçimi, yakınlaştırma, sürükleme ve imleçle fiyat okuma desteklenir. Tarihsel veriler 60 saniye önbelleğe alınır; saniyelik veya uydurma fiyat hareketleri kullanılmaz. Grafik zaman aralığı işlem süresinden bağımsızdır.
 - Süre, düğmeye basıldığında değil, işlem zincire dahil edildiğinde başlar. Kapanış fiyatı, süre dolduktan sonra sonuçlandırma sırasında alınan gözlemdir; bitiş saniyesindeki kesin tarihsel fiyat garanti edilmez.
 - Servis 120 saniyelik ek süre içinde sonuçlandıramazsa `refundExpired` çağrısıyla işlem tutarının tamamı iade edilebilir. Arayüz uygun işlemlerde **İade al** seçeneğini gösterir.
 - **Tarayıcının veya bilgisayarının açık kalması gerekmez.** İmzalı teklif verilmeden önce Vercel Workflow işi kaydedilir. İş, cüzdanın işlem sırasını zincirde izler; işlem onaylanınca bitiş zamanına kadar bekler ve otomatik sonuçlandırır. İptal edilen veya kullanılmayan teklifler izlemeyi sonlandırır. Ağ hatalarında yeniden dener; ödeme daha önce yapılmışsa tekrar ödeme yapmaz. Uzun servis kesintilerinde sözleşmenin zaman aşımı iadesi geçerlidir.
@@ -166,3 +166,5 @@ Sözleşme değiştiğinde `npm run contracts:compile` ile derlenmiş dosyayı y
 ## Lisans
 
 Kaynak kod [MIT lisansı](LICENSE) ile paylaşılır.
+
+Grafikler [TradingView Lightweight Charts™](https://www.tradingview.com/) ile oluşturulur. [Üçüncü taraf bildirimi](public/chart-credits.txt).
