@@ -47,7 +47,20 @@ Never commit `.env.local`, a private key or a mnemonic. Generate a dedicated tes
 npm run keeper
 ```
 
-For Sites deployment, set server environment values through Sites and deploy the same source version. `.openai/hosting.json` contains site identity only, never keys. Source is public; site access and contract activation are separate.
+## Deploy to Vercel from GitHub
+
+Import `Saylool/monflip` at https://vercel.com/new. Select the Next.js framework preset, repository root, Node.js 22.x and leave build/output settings at their defaults. `npm run build` runs the native Next.js production build. Vercel automatically deploys future pushes to `main` once the Git integration is connected.
+
+The price screen builds and runs without any secrets. For wallet trading, add these **server-only** environment variables in Vercel project settings:
+
+- `ORACLE_PRIVATE_KEY`: dedicated testnet relay key. Never use a `NEXT_PUBLIC_` prefix.
+- `MONFLIP_CONTRACT`: deployed contract address, after completing `/setup`.
+- `COINGECKO_API_KEY`: optional Demo API key.
+- `MONAD_RPC_URL`: optional; defaults to the Monad testnet public RPC.
+
+Deploy first with the relay key, use `/setup`, then add the returned contract address and redeploy. The relay needs test MON for gas. Vercel runs the API routes as Node.js functions; it does **not** run `npm run keeper` continuously. Use a separate always-on worker for the keeper. Browser-triggered settlement and timeout refunds remain available. In-memory caching / serialization is per function instance, not a global lock.
+
+`.env.local` remains ignored by Git and Vercel uploads. Do not paste secret values into source, deployment URLs or chat. The old `.openai/hosting.json` records the previous Sites deployment and is not used by Vercel.
 
 ## Verify
 
@@ -68,4 +81,4 @@ Contract integration tests use a local EVM, real signatures and mined transactio
 - `scripts/keeper.mjs`: independent settlement service.
 - `lib/contract.json`: ABI and compiled deployment bytecode; regenerate after contract changes.
 
-Built with React, Vinext, viem and Solidity / OpenZeppelin. The source is MIT licensed.
+Built with Next.js, React, viem and Solidity / OpenZeppelin. The source is MIT licensed.

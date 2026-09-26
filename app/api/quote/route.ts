@@ -1,3 +1,5 @@
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 import { z } from "zod";
 import { encodeAbiParameters, keccak256, isAddress, parseEther } from "viem";
 import { oracle, publicClient, abi } from "@/lib/server";

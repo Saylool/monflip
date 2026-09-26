@@ -1,3 +1,5 @@
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 import { getPrices } from "@/lib/prices";
 export async function GET() {
   try {

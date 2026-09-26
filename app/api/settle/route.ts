@@ -1,3 +1,6 @@
+export const maxDuration = 60;
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 import { oracle, publicClient, abi } from "@/lib/server";
 import { getPrices } from "@/lib/prices";
 import { assets } from "@/lib/chain";
@@ -46,7 +49,7 @@ async function settle(id: bigint) {
       args: [id, BigInt(Math.round(p.price * 1e8))],
     });
   }
-  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 45000 });
   if (receipt.status !== "success") throw new Error("SETTLEMENT_FAILED");
   return Response.json({ status: "settled", hash });
 }

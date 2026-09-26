@@ -1,3 +1,5 @@
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 import { config } from "@/lib/server";
 import { privateKeyToAccount } from "viem/accounts";
 export async function GET() {
