@@ -45,6 +45,25 @@ type Config = {
   ready: boolean;
   status?: string;
 };
+function EthereumIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 40"
+      width="60%"
+      height="80%"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M12 0 0 20 12 15Z" fill="#d5def6" />
+      <path d="m12 0 12 20-12-5Z" fill="#8c9bbc" />
+      <path d="m0 20 12 7V15Z" fill="#a7b7d9" />
+      <path d="m24 20-12 7V15Z" fill="#637699" />
+      <path d="m0 23 12 17V30Z" fill="#d5def6" />
+      <path d="M24 23 12 40V30Z" fill="#8c9bbc" />
+    </svg>
+  );
+}
+
 export default function Home() {
   const [lang, setLang] = useState<"tr" | "en">("tr");
   const t = (tr: string, en: string) => (lang === "tr" ? tr : en);
@@ -586,7 +605,7 @@ export default function Home() {
               {assets.map((a, i) => (
                 <TabsTrigger key={a.symbol} value={String(i)}>
                   <span className={"coin coin-" + i}>
-                    {i === 0 ? "₿" : i === 1 ? "Ξ" : "◈"}
+                    {i === 0 ? "₿" : i === 1 ? <EthereumIcon /> : "◈"}
                   </span>
                   {a.name}
                   <small>{a.symbol}</small>
@@ -735,7 +754,7 @@ export default function Home() {
                 onClick={() => setAsset(i)}
               >
                 <span className={"coin coin-" + i}>
-                  {i === 0 ? "₿" : i === 1 ? "Ξ" : "◈"}
+                  {i === 0 ? "₿" : i === 1 ? <EthereumIcon /> : "◈"}
                 </span>
                 {a.symbol}
               </button>
